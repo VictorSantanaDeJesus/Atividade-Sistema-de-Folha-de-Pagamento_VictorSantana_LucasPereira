@@ -46,7 +46,7 @@ def calcular_inss(salario):
 
 def calcular_irrf(salario, dependentes):
     faixa_irrf = [
-        (2259.20, 0.0),  # Isento
+        (2259.20, 0.0),
         (2826.65, 0.075),
         (3751.05, 0.15),
         (4664.68, 0.225),
