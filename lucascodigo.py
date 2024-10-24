@@ -1,94 +1,104 @@
 import os
-from sqlalchemy import create_engine, Column, String, Integer
+from sqlalchemy import create_engine, Column, String, Integer, Float
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 # Criando banco de dados.
-MEU_BANCO = create_engine("sqlite:///meubanco.db")
+MEU_BANCO = create_engine("sqlite:///folhapagamento.db")
 
 # Criando conexão com banco de dados.
 Session = sessionmaker(bind=MEU_BANCO)
 session = Session()
 
-
 # Criando tabela.
-
 Base = declarative_base()
 
-class Usuario(Base):
-    __tablename__ = "usuarios"
+class Funcionario(Base):
+    __tablename__ = "funcionarios"
 
     # Definindo campos da tabela.
     id = Column("id", Integer, primary_key=True, autoincrement=True)
-    nome = Column("nome", String)
-    email = Column("email", String)
+    matricula = Column("matricula", String)
     senha = Column("senha", String)
+    nome = Column("nome", String)
+    salario_base = Column("salario_base", Float)
 
     # Definindo atributos da classe.
-    def __init__(self, nome: str, email: str, senha: str):
-        self.nome = nome
-        self.email = email
+    def __init__(self, matricula: str, senha: str, nome: str, salario_base: float):
+        self.matricula = matricula
         self.senha = senha
+        self.nome = nome
+        self.salario_base = salario_base
 
 # Criando tabela no banco de dados.
 Base.metadata.create_all(bind=MEU_BANCO)
 
+def calcular_inss(salario):
+    if salario <= 1100.00:
+        return salario * 0.075
+    elif salario <= 2203.48:
+        return salario * 0.09
+    elif salario <= 3305.22:
+        return salario * 0.12
+    elif salario <= 6433.57:
+        return salario * 0.14
+    else:
+        return 854.36
+
+def calcular_irrf(salario, dependentes):
+    faixa_irrf = [
+        (2259.20, 0.0),  # Isento
+        (2826.65, 0.075),
+        (3751.05, 0.15),
+        (4664.68, 0.225),
+        (float('inf'), 0.275)
+    ]
+    deducao_dependente = 189.59
+    for limite, taxa in faixa_irrf:
+        if salario <= limite:
+            return (salario * taxa) - (deducao_dependente * dependentes)
+
+def calcular_salario_liquido(funcionario):
+    inss = calcular_inss(funcionario.salario_base)
+    irrf = calcular_irrf(funcionario.salario_base, 1)  # considerando 1 dependente
+    return funcionario.salario_base - inss - irrf
+
 # Salvar no banco de dados.
 os.system("cls || clear")
 
-# Create
-print("Solicitando dados para o usuário")
-inserir_nome = input("Digite seu nome: ")
-inserir_email = input("Digite seu e-mail: ")
-inserir_senha = input("Digite seu senha ")
+# Inserindo um funcionário
+print("Solicitando dados do funcionário.")
+matricula = input("Digite sua matrícula: ")
+senha = input("Digite sua senha: ")
+nome = input("Digite seu nome: ")
+salario_base = float(input("Digite seu salário base: R$ "))
 
-usuario = Usuario(nome=inserir_nome, email=inserir_email, senha=inserir_senha)
-session.add(usuario)
+funcionario = Funcionario(matricula=matricula, senha=senha, nome=nome, salario_base=salario_base)
+session.add(funcionario)
 session.commit()
 
-# Listando todos os usuários do banco de dados.
-# Read
-print("\nExibindo todos os usuários do bando de dados.")
-lista_usuarios = session.query(Usuario).all()
+# Acesso aos dados do funcionário
+print("\nAcessando dados do funcionário.")
+matricula_acesso = input("Digite sua matrícula: ")
+senha_acesso = input("Digite sua senha: ")
 
-for usuario in lista_usuarios:
-    print(f"{usuario.id} - {usuario.nome} - {usuario.email} - {usuario.senha}")
+funcionario_acesso = session.query(Funcionario).filter_by(matricula=matricula_acesso, senha=senha_acesso).first()
 
-# Delete
-print("\nExcluindo um usuário.")
-email_usuario = input("Informe o email do usuário para ser excluido: ")
+if funcionario_acesso:
+    vale_transporte = input("Deseja receber vale transporte (s/n)? ").strip().lower()
+    vale_refeicao = float(input("Digite o valor do vale refeição fornecido pela empresa: R$ "))
 
-usuario = session.query(Usuario).filter_by(email = email_usuario).first()
-session.delete(usuario)
-session.commit()
-print(f"{usuario.nome} excluido com sucesso.")
+    salario_liquido = calcular_salario_liquido(funcionario_acesso)
 
-# Listando todos os usuários do banco de dados.
-# Read
-print("\nExibindo todos os usuários do bando de dados.")
-lista_usuarios = session.query(Usuario).all()
+    if vale_transporte == 's':
+        desconto_transporte = funcionario_acesso.salario_base * 0.06
+        salario_liquido -= desconto_transporte
 
-for usuario in lista_usuarios:
-    print(f"{usuario.id} - {usuario.nome} - {usuario.email} - {usuario.senha}")
+    desconto_refeicao = vale_refeicao * 0.20
+    salario_liquido -= desconto_refeicao
 
-# Update
-print("\nAtualizando dados do usuário.")
-email_usuario = input("Informe o email do usuário que será atualizado: ")
-
-usuario = session.query(Usuario).filter_by(email = email_usuario).first()
-
-usuario.nome = input("Digite seu nome: ")
-usuario.email = input("Digite seu e-mail: ")
-usuario.senha = input("Digite seu senha: ")
-
-session.commit()
-
-# Listando todos os usuários do banco de dados.
-# Read
-print("\nExibindo todos os usuários do bando de dados.")
-lista_usuarios = session.query(Usuario).all()
-
-for usuario in lista_usuarios:
-    print(f"{usuario.id} - {usuario.nome} - {usuario.email} - {usuario.senha}")
+    print(f"\nSalário líquido de {funcionario_acesso.nome}: R$ {salario_liquido:.2f}")
+else:
+    print("Matrícula ou senha incorretas.")
 
 # Fechando conexão.
 session.close()
